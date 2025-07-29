@@ -16,12 +16,17 @@ const register = async (req, res) => {
 
     if (existingUser) {
       return res.status(400).json({
-        message: " Email already exists",
+        message: "Email already exists",
       });
     }
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = await User.create({ email, password: hashedPassword });
+    const user = await User.create({
+      email,
+      password: hashedPassword,
+    });
+
     res.status(201).json({
       message: "Registration done",
       user,
@@ -47,7 +52,7 @@ const login = async (req, res) => {
     const user = await User.findOne({ email });
 
     if (!user) {
-      return res.status(404).json({
+      return res.status(400).json({
         message: "Invalid email or password",
       });
     }
@@ -56,27 +61,29 @@ const login = async (req, res) => {
 
     if (!isValidPassword) {
       return res.status(400).json({
-        message: "Invalid email or password ",
+        mesage: "Invalid email or password",
       });
     }
 
     const token = jwt.sign(
-      { email: user.email, role: user.role },
+      {
+        email: user.email,
+        role: user.role,
+        _id: user._id,
+      },
       process.env.JWT_SECRET,
       { expiresIn: "1h" }
     );
 
-res.cookie("jwt", token, {
-    maxAge :3600000,
-    httpOnly: true,
-});
+    res.cookie("jwt", token, {
+      maxAge: 3600000,
+      httpOnly: true,
+    });
 
     res.json({
       message: "Login done",
       token,
     });
-
-
   } catch (error) {
     console.log(error.message);
     res.status(500).json({
@@ -85,18 +92,38 @@ res.cookie("jwt", token, {
   }
 };
 
-
 const logout = (req, res) => {
-res.clearCookie("jwt");
-res.json({
-message : "Logout Successful"
-})
+  res.clearCookie("jwt");
 
+  res.json({
+    message: "Logout successful",
+  });
 };
 
+const verifyUser = (req, res, next) => {
+  // Check if the token exists in the request cookies
+  const token = req.cookies.jwt;
+  if (!token)
+    return res.status(401).json({
+      authenticated: false,
+    });
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    res.status(200).json({
+      authenticated: true,
+      user: decoded,
+    });
+  } catch (err) {
+    res.status(401).json({
+      authenticated: false,
+    });
+  }
+};
 
 module.exports = {
   register,
   login,
   logout,
+  verifyUser,
 };
